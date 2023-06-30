@@ -2,20 +2,32 @@ from flask import Flask ,render_template,redirect,url_for,request,flash
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash,check_password_hash
 from flask_login import UserMixin,LoginManager,login_required,current_user,login_user,logout_user
+from datetime import datetime
+
 app=Flask(__name__)
 app.config['SECRET_KEY'] = 'your_secret_key_here'
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///users.db'
+# app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///users.db'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://postgres:postgres@localhost:5432/flask_auth_app'
 db=SQLAlchemy(app)
 
 login_manager = LoginManager()
 login_manager.login_view ='login'
 login_manager.init_app(app)
 
+# User table models
 class User(UserMixin,db.Model):
     id=db.Column(db.Integer,primary_key=True)
     email=db.Column(db.String(100),unique=True)
     password=db.Column(db.String(100))
     name=db.Column(db.String(100))
+
+# Blog table model
+class Blog(db.Model):
+    id=db.Column(db.Integer,primary_key=True)
+    title=db.Column(db.String(100))
+    content=db.Column(db.String(800))
+    created_at=db.Column(db.DateTime(),default=datetime.utcnow)
+    author_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
 
 @login_manager.user_loader
 def load_user(user_id):
@@ -24,7 +36,8 @@ def load_user(user_id):
 # index page
 @app.route('/')
 def index():
-    return render_template('index.html')
+    blog_list = Blog.query.all()
+    return render_template('index.html', blog_list=blog_list)
 
 # profile page
 @app.route('/profile')
@@ -88,6 +101,20 @@ def logout():
     logout_user()
     flash('You have logged out successfully','success')
     return redirect(url_for('login'))
+
+# bloging url here ----------------------------------------
+@app.route('/createblog',methods=['POST','GET'])
+@login_required
+def blog():
+    if request.method == 'POST':
+        title=request.form.get('title')
+        content=request.form.get('content')
+        author_id=current_user.id
+        blog=Blog(title=title,content=content,author_id=author_id)
+        db.session.add(blog)
+        db.session.commit()
+        return redirect(url_for('index'))
+    return render_template('blog.html')
 
 if __name__ == '__main__':
     with app.app_context():
