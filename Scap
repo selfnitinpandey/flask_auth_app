@@ -1,0 +1,70 @@
+import requests
+from bs4 import BeautifulSoup
+import pandas as pd
+
+def scrape_product_listings(url):
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+    }
+
+    response = requests.get(url, headers=headers)
+    soup = BeautifulSoup(response.content, 'html.parser')
+    product_urls = []
+    product_names = []
+    product_prices = []
+    product_ratings = []
+    product_reviews = []
+
+    # Extract product information from each listing
+    listings = soup.find_all('div', {'data-component-type': 's-search-result'})
+    for listing in listings:
+        # Product URL
+        url = listing.find('a', class_='a-link-normal s-no-outline').get('href')
+        product_urls.append('https://www.amazon.in' + url)
+        # Product Name
+        product_name = listing.find('span', class_='a-size-medium a-color-base a-text-normal').text.strip()
+        product_names.append(product_name)
+
+        # Product Price
+        product_price = listing.find('span', class_='a-price-whole')
+        if product_price:
+            product_prices.append(product_price.text.strip())
+        else:
+            product_prices.append('N/A')
+
+        # Product Rating
+        product_rating = listing.find('span', class_='a-icon-alt')
+        if product_rating:
+            product_ratings.append(product_rating.text.strip())
+        else:
+            product_ratings.append('N/A')
+
+        # Number of Reviews
+        product_review = listing.find('span', class_='a-size-base')
+        if product_review:
+            product_reviews.append(product_review.text.strip())
+        else:
+            product_reviews.append('N/A')
+
+    data = {
+        'Product URL': product_urls,
+        'Product Name': product_names,
+        'Product Price': product_prices,
+        'Rating': product_ratings,
+        'Number of Reviews': product_reviews
+    }
+
+    return pd.DataFrame(data)
+
+# URL for product listings
+url = "https://www.amazon.in/s?k=bags&crid=2M096C61O4MLT&qid=1653308124&sprefix=ba%2Caps%2C283&ref=sr_pg_1"
+
+# Scrape product listings from multiple pages
+all_product_data = pd.DataFrame()
+for page in range(1, 21):  # Scrape 20 pages
+    page_url = url + '&page=' + str(page)
+    product_data = scrape_product_listings(page_url)
+    all_product_data = all_product_data.append(product_data, ignore_index=True)
+
+# Save data to CSV file
+all_product_data.to_csv('product_listings.csv', index=False)
